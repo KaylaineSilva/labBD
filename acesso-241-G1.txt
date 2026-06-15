@@ -1,0 +1,5 @@
+hostname: pgdb.icmc.usp.br
+database: scc241_g01_db
+port: 5432
+username: scc241_g01
+password: grupo1_Kaylaine_2026

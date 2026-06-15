@@ -1,0 +1,43 @@
+# Ambiente virtual
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Variáveis de ambiente
+.env
+.env.local
+
+# Banco / arquivos locais
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+
+# VS Code
+.vscode/
+
+# PyCharm
+.idea/
+
+# Arquivos temporários
+*.tmp
+*.bak
