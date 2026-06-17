@@ -100,7 +100,7 @@ def mostrar_dashboard_admin(usuario):
             ORDER BY r.race_date;
         """)
 
-        st.dataframe(df_corridas, use_container_width=True)
+        st.dataframe(df_corridas, width='stretch')
 
     except Exception as e:
         st.error("Erro ao carregar as corridas da temporada mais recente.")
@@ -131,7 +131,7 @@ def mostrar_dashboard_admin(usuario):
             ORDER BY "Total de pontos" DESC;
         """)
 
-        st.dataframe(df_escuderias, use_container_width=True)
+        st.dataframe(df_escuderias, width='stretch')
 
     except Exception as e:
         st.error("Erro ao carregar a pontuação das escuderias.")
@@ -162,7 +162,7 @@ def mostrar_dashboard_admin(usuario):
             ORDER BY "Total de pontos" DESC;
         """)
 
-        st.dataframe(df_pilotos, use_container_width=True)
+        st.dataframe(df_pilotos, width='stretch')
 
     except Exception as e:
         st.error("Erro ao carregar a pontuação dos pilotos.")

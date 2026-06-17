@@ -8,15 +8,17 @@ import pandas as pd
 
 from db import conectar
 
-from telas.dashboard_admin import mostrar_dashboard_admin
+from admin.dashboard_admin import mostrar_dashboard_admin
 from telas.dashboard_escuderia import mostrar_dashboard_escuderia
 from telas.dashboard_piloto import mostrar_dashboard_piloto
 
-from telas.relatorios_admin import mostrar_relatorios_admin
+from admin.relatorios_admin import mostrar_relatorios_admin
 from telas.relatorios_escuderia import mostrar_relatorios_escuderia
 from telas.relatorios_piloto import mostrar_relatorios_piloto
 
 from telas.acoes import mostrar_acoes
+
+from auth import logar, inserir_usuarios, logout
 
 st.set_page_config(
     page_title="Sistema Fórmula 1",
@@ -91,63 +93,25 @@ def tela_login():
         # Autenticação temporária para testar a interface.
         # Depois isso pode ser trocado pela consulta real na tabela USERS.
 
-        if login == "admin" and senha == "admin":
+        if not login or not senha:
+            st.warning("Por favor, preencha todos os campos.")
+            return
+        
+        resultado = logar(login, senha)
+
+        # Função logar() retorna:
+        # - 0 se usuário não encontrado
+        # - 1 se senha incorreta 
+        # - dicionário com dados do usuário se login bem-sucedido
+        
+        if resultado == 0 or resultado == 1:  
+            st.error("Usuário ou senha incorretos.")
+        else:
+            st.success("Login bem-sucedido!")
             st.session_state.logado = True
-            st.session_state.usuario = {
-                "userid": 1,
-                "login": "admin",
-                "tipo": "Admin",
-                "id_original": None
-            }
+            st.session_state.usuario = resultado
             st.session_state.pagina = "Dashboard"
             st.rerun()
-
-        elif login.endswith("_c"):
-            constructor_ref = login.replace("_c", "")
-
-            if senha == constructor_ref:
-                constructor_id = buscar_id_escuderia(constructor_ref)
-
-                if constructor_id is None:
-                    st.error("Escuderia não encontrada na base.")
-                    return
-
-                st.session_state.logado = True
-                st.session_state.usuario = {
-                    "userid": 2,
-                    "login": login,
-                    "tipo": "Escuderia",
-                    "id_original": constructor_id
-                }
-                st.session_state.pagina = "Dashboard"
-                st.rerun()
-
-            else:
-                st.error("Usuário ou senha inválidos.")
-
-        elif login.endswith("_d"):
-            driver_ref = login.replace("_d", "")
-
-            if senha == driver_ref:
-                driver_id = buscar_id_piloto(driver_ref)
-
-                if driver_id is None:
-                    st.error("Piloto não encontrado na base.")
-                    return
-
-                st.session_state.logado = True
-                st.session_state.usuario = {
-                    "userid": 3,
-                    "login": login,
-                    "tipo": "Piloto",
-                    "id_original": driver_id
-                }
-                st.session_state.pagina = "Dashboard"
-                st.rerun()
-
-            else:
-                st.error("Usuário ou senha inválidos.")
-
 
 def menu_lateral():
     usuario = st.session_state.usuario
@@ -177,11 +141,7 @@ def menu_lateral():
         st.divider()
 
         if st.button("Sair"):
-            st.session_state.logado = False
-            st.session_state.usuario = None
-            st.session_state.pagina = "Dashboard"
-            st.rerun()
-
+            logout()
 
 def tela_teste_conexao():
     """
@@ -254,7 +214,7 @@ def tela_teste_conexao():
             columns=["Nome da coluna", "Tipo de dado"]
         )
 
-        st.dataframe(df_colunas, use_container_width=True)
+        st.dataframe(df_colunas, width='stretch')
 
         st.divider()
 
@@ -271,7 +231,7 @@ def tela_teste_conexao():
 
         df = pd.DataFrame(dados, columns=colunas)
 
-        st.dataframe(df, use_container_width=True)
+        st.dataframe(df, width='stretch')
 
         cur.close()
         conn.close()
@@ -313,6 +273,8 @@ def roteador():
 
 
 def main():
+    inserir_usuarios()  # Inserir usuários ao iniciar a aplicação
+
     inicializar_sessao()
 
     if not st.session_state.logado:
