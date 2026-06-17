@@ -52,8 +52,9 @@ def cadastrar_escuderia(idadmin, constructor_ref, name, country_id, wikipedia_ur
         usuario = cur.fetchone()
 
         if usuario is None:
+            #Garantindo que o rollback seja feito caso o trigger não tenha funcionado corretamente, para evitar inconsistências no banco de dados.
             conn.rollback()
-            st.error("Erro ao cadastrar escuderia.")
+            st.error("Erro: trigger de inserção do usuário não funcionou corretamente.")
             return False
         
         #Se chegamos aqui, o cadastro foi bem-sucedido, geramos log e damos commit na transação e retornamos True.
@@ -75,8 +76,18 @@ def cadastrar_escuderia(idadmin, constructor_ref, name, country_id, wikipedia_ur
         cur.close()
         conn.close()
 
-def cadastrar_piloto(idmin, driver_ref, given_name, family_name, date_of_birth, country_id):
-    
+'''
+Nome: cadastrar_piloto
+Descrição: Realiza o cadastro de um novo piloto no sistema, inserindo os dados na tabela drivers. O trigger de inserção deve criar um usuário do tipo "Piloto" automaticamente. A função verifica se o cadastro foi bem-sucedido, retornando True ou False.
+Parâmetros:
+    - driver_ref: referência do piloto (string)
+    - given_name: nome do piloto (string)  
+    - family_name: sobrenome do piloto (string)
+    - date_of_birth: data de nascimento do piloto (date)
+    - country_id: ID do país do piloto (inteiro)
+Retorno: Booleano indicando se o cadastro foi bem-sucedido (True) ou se falhou (False)
+'''
+def cadastrar_piloto(idadmin, driver_ref, given_name, family_name, date_of_birth, country_id):
     conn = conectar()
     cur = conn.cursor()
 
@@ -102,8 +113,9 @@ def cadastrar_piloto(idmin, driver_ref, given_name, family_name, date_of_birth, 
         usuario = cur.fetchone()
 
         if usuario is None:
+            #Garantindo que o rollback seja feito caso o trigger não tenha funcionado corretamente, para evitar inconsistências no banco de dados.
             conn.rollback()
-            st.error("Erro: trigger de inserção do usuário não funcionou corretamente.")
+            #st.error("Erro: trigger de inserção do usuário não funcionou corretamente.")
             return False
         
         #Se chegamos aqui, o cadastro foi bem-sucedido, geramos log e damos commit na transação e retornamos True.
@@ -111,14 +123,14 @@ def cadastrar_piloto(idmin, driver_ref, given_name, family_name, date_of_birth, 
             """
             INSERT INTO users_log (userid, acao, data_hora)
             VALUES (%s, %s, NOW());
-            """, (idmin,  f"CADASTRO_PILOTO_{driver_id}")
+            """, (idadmin,  f"CADASTRO_PILOTO_{driver_id}")
         )
 
         conn.commit()
         return True
     except Exception as e:
-        st.error("Erro ao cadastrar piloto:")
-        st.exception(e)
+        #st.error("Erro ao cadastrar piloto:")
+        #st.exception(e)
         conn.rollback()
         return False
     finally:
