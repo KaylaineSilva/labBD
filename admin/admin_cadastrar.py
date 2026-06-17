@@ -53,7 +53,7 @@ def cadastrar_escuderia(idadmin, constructor_ref, name, country_id, wikipedia_ur
 
         if usuario is None:
             conn.rollback()
-            st.error("Erro: trigger de inserção do usuário não funcionou corretamente.")
+            st.error("Erro ao cadastrar escuderia.")
             return False
         
         #Se chegamos aqui, o cadastro foi bem-sucedido, geramos log e damos commit na transação e retornamos True.
@@ -68,7 +68,7 @@ def cadastrar_escuderia(idadmin, constructor_ref, name, country_id, wikipedia_ur
         return True
     except Exception as e:
         st.error("Erro ao cadastrar escuderia:")
-        st.exception(e)
+        #st.exception(e)
         conn.rollback()
         return False
     finally:
@@ -117,7 +117,7 @@ def cadastrar_piloto(idmin, driver_ref, given_name, family_name, date_of_birth, 
         return True
     except Exception as e:
         st.error("Erro ao cadastrar piloto:")
-        st.exception(e)
+        #st.exception(e)
         conn.rollback()
         retorno = False
     finally:
