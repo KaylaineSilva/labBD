@@ -35,3 +35,35 @@ CREATE TRIGGER trigger_criar_usuario_escuderia
 AFTER INSERT ON constructors
 FOR EACH ROW
 EXECUTE FUNCTION criar_usuario_escuderia();
+
+
+-- Trigger para criar usuário do tipo "Piloto" automaticamente ao cadastrar um novo piloto
+CREATE OR REPLACE FUNCTION criar_usuario_piloto()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Verifica se o usuário já existe para o piloto
+    IF EXISTS (
+        SELECT 1 FROM users WHERE login = NEW.driver_ref || '_d'
+        ) THEN
+            RAISE EXCEPTION 'Usuário para o piloto % já existe. Nenhum novo usuário será criado.', NEW.driver_ref; 
+            -- cancelando a operação de inserção do usuário, pois já existe um para esse piloto
+    ELSE
+        -- Insere um novo usuário do tipo "Piloto" com login baseado no nome do piloto
+        INSERT INTO users (login, password, tipo, id_original)
+        VALUES (
+            NEW.driver_ref || '_d',
+            crypt(NEW.driver_ref, gen_salt('bf')), 
+            'Piloto',
+            NEW.id
+            );
+        RETURN NEW;
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trigger_criar_usuario_piloto ON drivers;
+
+CREATE TRIGGER trigger_criar_usuario_piloto
+AFTER INSERT ON drivers
+FOR EACH ROW
+EXECUTE FUNCTION criar_usuario_piloto();

@@ -1,3 +1,5 @@
+from datetime import date
+
 import streamlit as st
 import pandas as pd
 
@@ -43,7 +45,11 @@ def acoes_admin():
             driver_ref = st.text_input("Referência do piloto")
             given_name = st.text_input("Nome")
             family_name = st.text_input("Sobrenome")
-            date_of_birth = st.date_input("Data de nascimento")
+            date_of_birth = st.date_input(
+                "Data de nascimento",
+                min_value=date(1900, 1, 1),
+                max_value=date.today()
+            )
             country_id = st.number_input("ID do país do piloto", min_value=1, step=1)
 
             enviar = st.form_submit_button("Cadastrar piloto")

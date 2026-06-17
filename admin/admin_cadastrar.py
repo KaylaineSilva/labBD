@@ -67,7 +67,7 @@ def cadastrar_escuderia(idadmin, constructor_ref, name, country_id, wikipedia_ur
         conn.commit()
         return True
     except Exception as e:
-        st.error("Erro ao cadastrar escuderia:")
+        #st.error("Erro ao cadastrar escuderia:")
         #st.exception(e)
         conn.rollback()
         return False
@@ -82,7 +82,7 @@ def cadastrar_piloto(idmin, driver_ref, given_name, family_name, date_of_birth, 
 
     try: #Usando a estrutura try-except-finally porque o trigger pode gerar um erro caso o login já exista, e nesse caso queremos dar rollback na transação e retornar False.
         cur.execute("""
-            INSERT INTO drivers (driver_ref, given_name, family_name, date_of_birth, nationality)
+            INSERT INTO drivers (driver_ref, given_name, family_name, date_of_birth, country_id)
             VALUES (%s, %s, %s, %s, %s)
             RETURNING id;
         """, (driver_ref, given_name, family_name, date_of_birth, country_id))
@@ -97,7 +97,7 @@ def cadastrar_piloto(idmin, driver_ref, given_name, family_name, date_of_birth, 
             SELECT userid
             FROM users
             WHERE id_original = %s;
-        """, (driver_id))
+        """, (driver_id,))
         
         usuario = cur.fetchone()
 
@@ -113,15 +113,14 @@ def cadastrar_piloto(idmin, driver_ref, given_name, family_name, date_of_birth, 
             VALUES (%s, %s, NOW());
             """, (idmin,  f"CADASTRO_PILOTO_{driver_id}")
         )
+
         conn.commit()
         return True
     except Exception as e:
         st.error("Erro ao cadastrar piloto:")
-        #st.exception(e)
+        st.exception(e)
         conn.rollback()
-        retorno = False
+        return False
     finally:
         cur.close()
         conn.close()
-
-    return retorno
