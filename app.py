@@ -7,6 +7,8 @@ import streamlit as st
 import pandas as pd
 
 from db import conectar
+from db import executar_arquivo_sql
+
 
 from admin.dashboard_admin import mostrar_dashboard_admin
 from telas.dashboard_escuderia import mostrar_dashboard_escuderia
@@ -16,8 +18,9 @@ from admin.relatorios_admin import mostrar_relatorios_admin
 from telas.relatorios_escuderia import mostrar_relatorios_escuderia
 from telas.relatorios_piloto import mostrar_relatorios_piloto
 
-from telas.acoes import mostrar_acoes
 
+from admin.acoes_admin import mostrar_acoes_admin
+from telas.acoes_escuderia import mostrar_acoes
 from auth import logar, inserir_usuarios, logout
 
 st.set_page_config(
@@ -269,11 +272,19 @@ def roteador():
         tela_teste_conexao()
     
     elif pagina == "Ações":
-        mostrar_acoes(usuario)
+        if tipo == "Admin":
+            mostrar_acoes_admin(usuario)
+
+        elif tipo == "Escuderia":
+            mostrar_acoes(usuario)
 
 
 def main():
     inserir_usuarios()  # Inserir usuários ao iniciar a aplicação
+
+    #Executando os arquivos sql necessários
+    executar_arquivo_sql("bd_conf/table_users.sql")
+    executar_arquivo_sql("sql/triggers.sql")
 
     inicializar_sessao()
 

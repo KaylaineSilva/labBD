@@ -16,3 +16,24 @@ def conectar():
     )
 
     return conn
+
+def executar_arquivo_sql(caminho_arquivo):
+    conn = conectar()
+    cur = conn.cursor()
+
+    try:
+        with open(caminho_arquivo, "r", encoding="utf-8") as arquivo:
+            sql = arquivo.read()
+
+        cur.execute(sql)
+        conn.commit()
+        print("Arquivo SQL executado com sucesso.")
+
+    except Exception as e:
+        conn.rollback()
+        print("Erro ao executar SQL:")
+        print(e)
+
+    finally:
+        cur.close()
+        conn.close()

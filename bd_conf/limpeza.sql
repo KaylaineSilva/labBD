@@ -1,4 +1,9 @@
+SET search_path TO projeto_f1; -- schema criado para este projeto final
+SET client_encoding TO 'UTF8';
+
 BEGIN;
+
+SELECT 'INICIO T1 LIMPEZA' AS etapa;
 
 /* ============================================================================================================
    T1
@@ -76,17 +81,110 @@ ADD COLUMN IF NOT EXISTS country_id INTEGER;
 ALTER TABLE constructors
 ADD COLUMN IF NOT EXISTS country_id INTEGER;
 
+/* Índices auxiliares para acelerar a normalização e a deduplicação. */
+CREATE INDEX IF NOT EXISTS idx_countries_code_t1 ON countries(code);
+CREATE INDEX IF NOT EXISTS idx_countries_name_t1 ON countries(name);
+CREATE INDEX IF NOT EXISTS idx_drivers_country_id_t1 ON drivers(country_id);
+CREATE INDEX IF NOT EXISTS idx_constructors_country_id_t1 ON constructors(country_id);
+CREATE INDEX IF NOT EXISTS idx_cities_country_id_t1 ON cities(country_id);
+CREATE INDEX IF NOT EXISTS idx_airports_city_id_t1 ON airports(city_id);
+CREATE INDEX IF NOT EXISTS idx_circuits_city_id_t1 ON circuits(city_id);
+
 /* Levantar as nacionalidades reais da base.
-   Isso evita depender apenas de uma lista escrita manualmente. */
+   Isso evita depender apenas de uma lista escrita manualmente.
+
+   AJUSTE PARA REEXECUCAO
+   ----------------------
+   Se este script já tiver sido executado parcialmente, as colunas textuais
+   drivers.nationality e/ou constructors.nationality podem já ter sido removidas.
+   Por isso, criamos tabelas temporárias de origem por DO + SQL dinâmico:
+   - se a coluna textual ainda existir, usamos o valor original;
+   - se ela já tiver sido removida, usamos o country_id já gravado e o gentílico
+     presente em countries apenas para as tabelas de conferência.
+*/
+DROP TABLE IF EXISTS tmp_driver_nationality_source;
+DROP TABLE IF EXISTS tmp_constructor_nationality_source;
+
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'projeto_f1'
+          AND table_name = 'drivers'
+          AND column_name = 'nationality'
+    ) THEN
+        EXECUTE $sql$
+            CREATE TEMP TABLE tmp_driver_nationality_source AS
+            SELECT
+                id,
+                driver_ref,
+                given_name,
+                family_name,
+                LOWER(TRIM(nationality)) AS nationality_text
+            FROM drivers
+            WHERE nationality IS NOT NULL
+              AND TRIM(nationality) <> ''
+        $sql$;
+    ELSE
+        EXECUTE $sql$
+            CREATE TEMP TABLE tmp_driver_nationality_source AS
+            SELECT
+                d.id,
+                d.driver_ref,
+                d.given_name,
+                d.family_name,
+                LOWER(TRIM(c.nationality)) AS nationality_text
+            FROM drivers d
+            LEFT JOIN countries c
+                   ON c.id = d.country_id
+            WHERE d.country_id IS NOT NULL
+        $sql$;
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'projeto_f1'
+          AND table_name = 'constructors'
+          AND column_name = 'nationality'
+    ) THEN
+        EXECUTE $sql$
+            CREATE TEMP TABLE tmp_constructor_nationality_source AS
+            SELECT
+                id,
+                constructor_ref,
+                name,
+                LOWER(TRIM(nationality)) AS nationality_text
+            FROM constructors
+            WHERE nationality IS NOT NULL
+              AND TRIM(nationality) <> ''
+        $sql$;
+    ELSE
+        EXECUTE $sql$
+            CREATE TEMP TABLE tmp_constructor_nationality_source AS
+            SELECT
+                ct.id,
+                ct.constructor_ref,
+                ct.name,
+                LOWER(TRIM(c.nationality)) AS nationality_text
+            FROM constructors ct
+            LEFT JOIN countries c
+                   ON c.id = ct.country_id
+            WHERE ct.country_id IS NOT NULL
+        $sql$;
+    END IF;
+END $$;
+
 CREATE TEMP TABLE tmp_nationalities AS
-SELECT DISTINCT LOWER(TRIM(nationality)) AS nationality_text
+SELECT DISTINCT nationality_text
 FROM (
-    SELECT nationality FROM drivers
+    SELECT nationality_text FROM tmp_driver_nationality_source
     UNION
-    SELECT nationality FROM constructors
+    SELECT nationality_text FROM tmp_constructor_nationality_source
 ) x
-WHERE nationality IS NOT NULL
-  AND TRIM(nationality) <> '';
+WHERE nationality_text IS NOT NULL
+  AND TRIM(nationality_text) <> '';
 
 /* Tabela auxiliar principal: guarda a correspondência entre o texto da nacionalidade
    e o código ISO de 2 letras do país. */
@@ -143,24 +241,20 @@ WHERE CHAR_LENGTH(nationality_text) - 4 >= 4;
 /* ------------------------------------------------------------------------------------------------------------
    1.2. CONFERÊNCIA AUXILIAR EM CITIES
 
-   Esta etapa NÃO define o país final.
-   Ela serve apenas para inspeção textual: verificar se o texto da nacionalidade aparece
-   em algum nome de cidade, ascii_name ou alternate_names.
+   Esta etapa era apenas uma conferência textual auxiliar, pois NÃO definia o país final.
+   A versão anterior fazia LIKE '%texto%' em name, ascii_name e alternate_names para todas
+   as cidades, o que deixava a execução muito pesada.
 
-   Isso é útil para o relatório e para entender como as variações textuais aparecem na base.
+   Para manter compatibilidade com as consultas comentadas do final do script, a tabela é
+   criada com a mesma estrutura, mas vazia. A lógica de limpeza não depende dela.
    ------------------------------------------------------------------------------------------------------------ */
-CREATE TEMP TABLE tmp_nationality_found_in_cities AS
-SELECT DISTINCT
-    v.nationality_text,
-    v.search_text,
-    v.removed_chars,
-    c.id   AS city_id,
-    c.name AS city_name
-FROM tmp_nationality_variants v
-JOIN cities c
-  ON LOWER(COALESCE(c.name, ''))            LIKE '%' || v.search_text || '%'
-  OR LOWER(COALESCE(c.ascii_name, ''))      LIKE '%' || v.search_text || '%'
-  OR LOWER(COALESCE(c.alternate_names, '')) LIKE '%' || v.search_text || '%';
+CREATE TEMP TABLE tmp_nationality_found_in_cities (
+    nationality_text VARCHAR(255),
+    search_text      VARCHAR(255),
+    removed_chars    INTEGER,
+    city_id          INTEGER,
+    city_name        VARCHAR(255)
+);
 
 /* ------------------------------------------------------------------------------------------------------------
    1.3. TENTATIVA AUTOMÁTICA DE MAPEAR NACIONALIDADE -> PAÍS
@@ -212,10 +306,12 @@ INSERT INTO tmp_nationality_map (nationality_text, country_code) VALUES
     ('australian', 'AU'),
     ('austrian', 'AT'),
     ('belgian', 'BE'),
+    ('brazilian', 'BR'),
     ('british', 'GB'),
     ('canadian', 'CA'),
     ('chilean', 'CL'),
     ('chinese', 'CN'),
+    ('colombian', 'CO'),
     ('czech', 'CZ'),
     ('danish', 'DK'),
     ('dutch', 'NL'),
@@ -224,6 +320,7 @@ INSERT INTO tmp_nationality_map (nationality_text, country_code) VALUES
     ('finnish', 'FI'),
     ('french', 'FR'),
     ('german', 'DE'),
+    ('hong kong', 'HK'),
     ('hungarian', 'HU'),
     ('indian', 'IN'),
     ('indonesian', 'ID'),
@@ -232,6 +329,7 @@ INSERT INTO tmp_nationality_map (nationality_text, country_code) VALUES
     ('japanese', 'JP'),
     ('liechtensteiner', 'LI'),
     ('malaysian', 'MY'),
+    ('mexican', 'MX'),
     ('monegasque', 'MC'),
     ('new zealander', 'NZ'),
     ('polish', 'PL'),
@@ -298,35 +396,90 @@ SET nationality = INITCAP(t.nationality_text)
 FROM tmp_country_nationality_canonical t
 WHERE c.code = t.country_code;
 
+/* Complemento direto para garantir que countries.nationality fique preenchida
+   nos países usados pela base, inclusive em reexecuções em que drivers.nationality
+   e constructors.nationality já tenham sido removidas. */
+UPDATE countries SET nationality = 'American' WHERE code = 'US';
+UPDATE countries SET nationality = 'Argentine' WHERE code = 'AR';
+UPDATE countries SET nationality = 'Australian' WHERE code = 'AU';
+UPDATE countries SET nationality = 'Austrian' WHERE code = 'AT';
+UPDATE countries SET nationality = 'Belgian' WHERE code = 'BE';
+UPDATE countries SET nationality = 'Brazilian' WHERE code = 'BR';
+UPDATE countries SET nationality = 'British' WHERE code = 'GB';
+UPDATE countries SET nationality = 'Canadian' WHERE code = 'CA';
+UPDATE countries SET nationality = 'Chilean' WHERE code = 'CL';
+UPDATE countries SET nationality = 'Chinese' WHERE code = 'CN';
+UPDATE countries SET nationality = 'Colombian' WHERE code = 'CO';
+UPDATE countries SET nationality = 'Czech' WHERE code = 'CZ';
+UPDATE countries SET nationality = 'Danish' WHERE code = 'DK';
+UPDATE countries SET nationality = 'Dutch' WHERE code = 'NL';
+UPDATE countries SET nationality = 'Emirati' WHERE code = 'AE';
+UPDATE countries SET nationality = 'Finnish' WHERE code = 'FI';
+UPDATE countries SET nationality = 'French' WHERE code = 'FR';
+UPDATE countries SET nationality = 'German' WHERE code = 'DE';
+UPDATE countries SET nationality = 'Hong Kong' WHERE code = 'HK';
+UPDATE countries SET nationality = 'Hungarian' WHERE code = 'HU';
+UPDATE countries SET nationality = 'Indian' WHERE code = 'IN';
+UPDATE countries SET nationality = 'Indonesian' WHERE code = 'ID';
+UPDATE countries SET nationality = 'Irish' WHERE code = 'IE';
+UPDATE countries SET nationality = 'Italian' WHERE code = 'IT';
+UPDATE countries SET nationality = 'Japanese' WHERE code = 'JP';
+UPDATE countries SET nationality = 'Liechtensteiner' WHERE code = 'LI';
+UPDATE countries SET nationality = 'Malaysian' WHERE code = 'MY';
+UPDATE countries SET nationality = 'Mexican' WHERE code = 'MX';
+UPDATE countries SET nationality = 'Monegasque' WHERE code = 'MC';
+UPDATE countries SET nationality = 'New Zealander' WHERE code = 'NZ';
+UPDATE countries SET nationality = 'Polish' WHERE code = 'PL';
+UPDATE countries SET nationality = 'Portuguese' WHERE code = 'PT';
+UPDATE countries SET nationality = 'Rhodesian' WHERE code = 'ZW';
+UPDATE countries SET nationality = 'Romanian' WHERE code = 'RO';
+UPDATE countries SET nationality = 'Russian' WHERE code = 'RU';
+UPDATE countries SET nationality = 'South African' WHERE code = 'ZA';
+UPDATE countries SET nationality = 'Spanish' WHERE code = 'ES';
+UPDATE countries SET nationality = 'Swedish' WHERE code = 'SE';
+UPDATE countries SET nationality = 'Swiss' WHERE code = 'CH';
+UPDATE countries SET nationality = 'Thai' WHERE code = 'TH';
+UPDATE countries SET nationality = 'Uruguayan' WHERE code = 'UY';
+UPDATE countries SET nationality = 'Venezuelan' WHERE code = 'VE';
+
 /* ------------------------------------------------------------------------------------------------------------
    1.6. PREENCHER OS VÍNCULOS EM DRIVERS E CONSTRUCTORS
    ------------------------------------------------------------------------------------------------------------ */
 UPDATE drivers d
 SET country_id = c.id
-FROM tmp_nationality_map m
+FROM tmp_driver_nationality_source s
+JOIN tmp_nationality_map m
+  ON m.nationality_text = s.nationality_text
 JOIN countries c
   ON c.code = m.country_code
-WHERE LOWER(TRIM(d.nationality)) = m.nationality_text;
+WHERE d.id = s.id
+  AND (d.country_id IS NULL OR d.country_id <> c.id);
 
 UPDATE constructors ct
 SET country_id = c.id
-FROM tmp_nationality_map m
+FROM tmp_constructor_nationality_source s
+JOIN tmp_nationality_map m
+  ON m.nationality_text = s.nationality_text
 JOIN countries c
   ON c.code = m.country_code
-WHERE LOWER(TRIM(ct.nationality)) = m.nationality_text;
+WHERE ct.id = s.id
+  AND (ct.country_id IS NULL OR ct.country_id <> c.id);
 
 /* Guardar as linhas que ainda não foram resolvidas.
    Essas tabelas ajudam a revisar casos problemáticos antes do fechamento. */
 CREATE TEMP TABLE tmp_drivers_not_migrated AS
-SELECT id, driver_ref, given_name, family_name, nationality
-FROM drivers
-WHERE country_id IS NULL;
+SELECT d.id, d.driver_ref, d.given_name, d.family_name, s.nationality_text AS nationality
+FROM drivers d
+LEFT JOIN tmp_driver_nationality_source s
+       ON s.id = d.id
+WHERE d.country_id IS NULL;
 
 CREATE TEMP TABLE tmp_constructors_not_migrated AS
-SELECT id, constructor_ref, name, nationality
-FROM constructors
-WHERE country_id IS NULL;
-
+SELECT ct.id, ct.constructor_ref, ct.name, s.nationality_text AS nationality
+FROM constructors ct
+LEFT JOIN tmp_constructor_nationality_source s
+       ON s.id = ct.id
+WHERE ct.country_id IS NULL;
 
 /* ------------------------------------------------------------------------------------------------------------
    1.7. TABELA DE MÉTRICAS PARA VALIDAR A REFERENCIAÇÃO DE DRIVERS E CONSTRUCTORS PARA COUNTRIES
@@ -346,7 +499,7 @@ DROP TABLE IF EXISTS t1_nationality_reference_metrics;
 CREATE TABLE t1_nationality_reference_metrics AS
 SELECT
     'drivers' AS entity_type,
-    LOWER(TRIM(d.nationality)) AS original_nationality,
+    s.nationality_text AS original_nationality,
     c.code AS country_code,
     c.name AS country_name,
     c.nationality AS country_nationality,
@@ -356,10 +509,12 @@ SELECT
         ELSE 'REFERENCIADO'
     END AS reference_status
 FROM drivers d
+LEFT JOIN tmp_driver_nationality_source s
+       ON s.id = d.id
 LEFT JOIN countries c
        ON c.id = d.country_id
 GROUP BY
-    LOWER(TRIM(d.nationality)),
+    s.nationality_text,
     c.id,
     c.code,
     c.name,
@@ -369,7 +524,7 @@ UNION ALL
 
 SELECT
     'constructors' AS entity_type,
-    LOWER(TRIM(ct.nationality)) AS original_nationality,
+    s.nationality_text AS original_nationality,
     c.code AS country_code,
     c.name AS country_name,
     c.nationality AS country_nationality,
@@ -379,15 +534,16 @@ SELECT
         ELSE 'REFERENCIADO'
     END AS reference_status
 FROM constructors ct
+LEFT JOIN tmp_constructor_nationality_source s
+       ON s.id = ct.id
 LEFT JOIN countries c
        ON c.id = ct.country_id
 GROUP BY
-    LOWER(TRIM(ct.nationality)),
+    s.nationality_text,
     c.id,
     c.code,
     c.name,
     c.nationality;
-
 
 /* Tabela resumo: quantos registros foram referenciados e quantos ficaram pendentes. */
 DROP TABLE IF EXISTS t1_nationality_reference_summary;
@@ -413,17 +569,23 @@ GROUP BY entity_type;
    ------------------------------------------------------------------------------------------------------------ */
 ALTER TABLE drivers
 DROP CONSTRAINT IF EXISTS fk_drivers_country;
+ALTER TABLE drivers
+DROP CONSTRAINT IF EXISTS drivers_country_id_fkey;
 
 ALTER TABLE constructors
 DROP CONSTRAINT IF EXISTS fk_constructors_country;
+ALTER TABLE constructors
+DROP CONSTRAINT IF EXISTS constructors_country_id_fkey;
 
 ALTER TABLE drivers
 ADD CONSTRAINT fk_drivers_country
-FOREIGN KEY (country_id) REFERENCES countries(id);
+FOREIGN KEY (country_id) REFERENCES countries(id)
+ON DELETE RESTRICT;
 
 ALTER TABLE constructors
 ADD CONSTRAINT fk_constructors_country
-FOREIGN KEY (country_id) REFERENCES countries(id);
+FOREIGN KEY (country_id) REFERENCES countries(id)
+ON DELETE RESTRICT;
 
 ALTER TABLE drivers
 ALTER COLUMN country_id SET NOT NULL;
@@ -645,6 +807,15 @@ SELECT
 FROM cities c
 WHERE COALESCE(NULLIF(c.ascii_name, ''), c.name) IS NOT NULL;
 
+CREATE INDEX IF NOT EXISTS idx_t1_cities_base_id
+ON t1_cities_base(id);
+
+CREATE INDEX IF NOT EXISTS idx_t1_cities_base_relaxed
+ON t1_cities_base(country_id, normalized_name_relaxed);
+
+CREATE INDEX IF NOT EXISTS idx_t1_cities_base_strict
+ON t1_cities_base(country_id, normalized_name_strict);
+
 /* ------------------------------------------------------------------------------------------------------------
    2.3. GRUPOS DE POSSÍVEIS DUPLICATAS
 
@@ -754,6 +925,12 @@ WHERE b1.latitude IS NOT NULL
         )
       );
 
+CREATE INDEX IF NOT EXISTS idx_t1_city_candidate_pairs_src
+ON t1_city_candidate_pairs(country_id, normalized_name, city_id_1);
+
+CREATE INDEX IF NOT EXISTS idx_t1_city_candidate_pairs_dst
+ON t1_city_candidate_pairs(country_id, normalized_name, city_id_2);
+
 /* ------------------------------------------------------------------------------------------------------------
    2.5. VALIDAÇÃO ESPECÍFICA DA REGRA DE SUFIXO
 
@@ -822,14 +999,16 @@ edges AS (
     FROM t1_city_candidate_pairs
 ),
 nodes AS (
-    SELECT
-        g.country_id,
-        g.normalized_name,
-        b.id AS city_id
-    FROM t1_city_groups g
-    JOIN t1_cities_base b
-      ON b.country_id = g.country_id
-     AND b.normalized_name_relaxed = g.normalized_name
+    /* Para a limpeza, só precisamos calcular componentes de cidades que
+       realmente aparecem em pares candidatos. Grupos textuais sem pares
+       continuam registrados em t1_city_group_validation, mas não entram
+       no merge automático. Isso mantém a lógica e evita a explosão da
+       recursão em grupos grandes sem ligação. */
+    SELECT DISTINCT country_id, normalized_name, src AS city_id
+    FROM edges
+    UNION
+    SELECT DISTINCT country_id, normalized_name, dst AS city_id
+    FROM edges
 ),
 walk AS (
     SELECT
@@ -861,6 +1040,9 @@ components AS (
 )
 SELECT *
 FROM components;
+
+CREATE INDEX IF NOT EXISTS idx_t1_city_component_map
+ON t1_city_component_map(country_id, normalized_name, component_id, city_id);
 
 /* ------------------------------------------------------------------------------------------------------------
    2.7. TAMANHO DOS COMPONENTES
