@@ -4,6 +4,10 @@ from db import conectar
 
 
 def buscar_linha_unica(query, params=None):
+    """
+    Executa uma consulta que retorna apenas uma linha.
+    Usada para buscar o resumo do dashboard do piloto.
+    """
     conn = conectar()
     cur = conn.cursor()
 
@@ -17,6 +21,9 @@ def buscar_linha_unica(query, params=None):
 
 
 def executar_consulta(query, params=None):
+    """
+    Executa uma consulta SELECT no banco e retorna o resultado como DataFrame.
+    """
     conn = conectar()
     cur = conn.cursor()
 
@@ -34,32 +41,15 @@ def executar_consulta(query, params=None):
 def mostrar_dashboard_piloto(usuario):
     st.title("Dashboard do Piloto")
 
+    # O id_original do usuário do tipo Piloto corresponde ao id da tabela drivers
+    # Esse valor garante que o piloto veja apenas informações sobre si mesmo
     driver_id = usuario["id_original"]
 
     try:
+        # Chamada da função armazenada criada no PostgreSQL
         dados_piloto = buscar_linha_unica("""
-            SELECT
-                d.given_name || ' ' || d.family_name AS nome_piloto,
-                COALESCE(c.name, 'Não informado') AS escuderia_mais_recente,
-                EXTRACT(YEAR FROM MIN(r.race_date))::int AS primeiro_ano,
-                EXTRACT(YEAR FROM MAX(r.race_date))::int AS ultimo_ano
-            FROM drivers d
-            LEFT JOIN results res
-                ON res.driver_id = d.id
-            LEFT JOIN races r
-                ON r.id = res.race_id
-            LEFT JOIN constructors c
-                ON c.id = (
-                    SELECT res2.constructor_id
-                    FROM results res2
-                    JOIN races r2
-                        ON r2.id = res2.race_id
-                    WHERE res2.driver_id = d.id
-                    ORDER BY r2.race_date DESC
-                    LIMIT 1
-                )
-            WHERE d.id = %s
-            GROUP BY d.id, d.given_name, d.family_name, c.name;
+            SELECT *
+            FROM fn_dashboard_piloto_resumo(%s);
         """, (driver_id,))
 
         if dados_piloto is None:
@@ -89,32 +79,29 @@ def mostrar_dashboard_piloto(usuario):
     try:
         st.subheader("Desempenho por ano e circuito")
 
+        # Chamada da função armazenada responsável pelo desempenho por ano e circuito
         df_desempenho = executar_consulta("""
-            SELECT
-                EXTRACT(YEAR FROM r.race_date)::int AS "Ano",
-                c.name AS "Circuito",
-                SUM(res.points) AS "Pontos obtidos",
-                COUNT(*) FILTER (WHERE res.position_order = 1) AS "Vitórias",
-                COUNT(*) AS "Total de corridas"
-            FROM results res
-            JOIN races r
-                ON r.id = res.race_id
-            JOIN circuits c
-                ON c.id = r.circuit_id
-            WHERE res.driver_id = %s
-            GROUP BY
-                EXTRACT(YEAR FROM r.race_date),
-                c.id,
-                c.name
-            ORDER BY
-                "Ano",
-                "Circuito";
+            SELECT *
+            FROM fn_dashboard_piloto_desempenho(%s);
         """, (driver_id,))
 
         if df_desempenho.empty:
             st.info("Este piloto ainda não possui resultados cadastrados.")
         else:
-            st.dataframe(df_desempenho, use_container_width=True)
+            # Renomeia as colunas da interface
+            df_desempenho = df_desempenho.rename(columns={
+                "ano": "Ano",
+                "circuito": "Circuito",
+                "pontos": "Pontos obtidos",
+                "vitorias": "Vitórias",
+                "total_corridas": "Total de corridas"
+            })
+
+            st.dataframe(
+                df_desempenho,
+                use_container_width=True,
+                hide_index=True
+            )
 
     except Exception as e:
         st.error("Erro ao carregar o desempenho do piloto.")

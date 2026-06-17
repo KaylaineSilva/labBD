@@ -7,7 +7,6 @@ def executar_consulta(query, params=None):
     """
     Executa uma consulta SELECT no banco e retorna o resultado como DataFrame.
     """
-
     conn = conectar()
     cur = conn.cursor()
 
@@ -26,7 +25,6 @@ def buscar_valor_unico(query, params=None):
     """
     Executa uma consulta que retorna apenas um valor.
     """
-
     conn = conectar()
     cur = conn.cursor()
 
@@ -45,6 +43,7 @@ def buscar_valor_unico(query, params=None):
 def mostrar_relatorios_piloto(usuario):
     st.title("Relatórios do Piloto")
 
+    # O id_original do usuário do tipo Piloto corresponde ao id da tabela drivers
     driver_id = usuario["id_original"]
 
     nome_piloto = buscar_valor_unico("""
@@ -82,30 +81,46 @@ def relatorio_pontos_por_ano(driver_id):
 
     st.write(
         "Este relatório apresenta o total de pontos obtidos pelo piloto em cada ano "
-        "de participação e, para cada ano, lista as corridas em que houve pontuação."
+        "de participação e lista as corridas em que houve pontuação."
     )
 
     if st.button("Gerar relatório", key="btn_pontos_piloto"):
         try:
-            # Consulta 1:
-            # Total de pontos por ano de participação do piloto logado.
-            df_resumo = executar_consulta("""
-                SELECT
-                    EXTRACT(YEAR FROM r.race_date)::int AS "Ano",
-                    SUM(res.points) AS "Total de pontos",
-                    COUNT(*) AS "Corridas disputadas",
-                    COUNT(*) FILTER (WHERE res.points > 0) AS "Corridas com pontos"
-                FROM results res
-                JOIN races r
-                    ON r.id = res.race_id
-                WHERE res.driver_id = %s
-                GROUP BY EXTRACT(YEAR FROM r.race_date)
-                ORDER BY "Ano";
+            # Relatório 6:
+            # Chama a função armazenada no PostgreSQL
+            # A função restringe os dados ao piloto logado por meio do driver_id
+            df_corridas = executar_consulta("""
+                SELECT *
+                FROM fn_relatorio6_piloto(%s);
             """, (driver_id,))
 
-            if df_resumo.empty:
-                st.info("Nenhum resultado encontrado para este piloto.")
+            if df_corridas.empty:
+                st.info("Nenhuma corrida com pontuação encontrada para este piloto.")
                 return
+
+            # Renomeia as colunas da interface
+            df_corridas = df_corridas.rename(columns={
+                "ano": "Ano",
+                "corrida": "Corrida",
+                "circuito": "Circuito",
+                "data_corrida": "Data",
+                "pontos": "Pontos obtidos",
+                "posicao_final": "Posição final"
+            })
+
+            # Cria o resumo anual a partir das corridas pontuadas retornadas pela função
+            df_resumo = (
+                df_corridas
+                .groupby("Ano", as_index=False)
+                .agg({
+                    "Pontos obtidos": "sum",
+                    "Corrida": "count"
+                })
+                .rename(columns={
+                    "Pontos obtidos": "Total de pontos",
+                    "Corrida": "Corridas com pontos"
+                })
+            )
 
             st.markdown("### Resumo de pontos por ano")
 
@@ -119,7 +134,7 @@ def relatorio_pontos_por_ano(driver_id):
 
             st.markdown("### Corridas em que os pontos foram obtidos")
 
-            # Para cada ano, busca apenas as corridas em que o piloto fez pontos.
+            # Para cada ano, mostra as corridas pontuadas daquele ano
             for _, linha in df_resumo.iterrows():
                 ano = int(linha["Ano"])
                 total_pontos = linha["Total de pontos"]
@@ -128,32 +143,19 @@ def relatorio_pontos_por_ano(driver_id):
                 with st.expander(
                     f"Ano {ano} — Total de pontos: {total_pontos} | Corridas com pontos: {corridas_com_pontos}"
                 ):
-                    df_corridas = executar_consulta("""
-                        SELECT
-                            r.race_name AS "Corrida",
-                            c.name AS "Circuito",
-                            r.race_date AS "Data",
-                            res.points AS "Pontos obtidos",
-                            res.position_order AS "Posição final"
-                        FROM results res
-                        JOIN races r
-                            ON r.id = res.race_id
-                        JOIN circuits c
-                            ON c.id = r.circuit_id
-                        WHERE res.driver_id = %s
-                        AND EXTRACT(YEAR FROM r.race_date)::int = %s
-                        AND res.points > 0
-                        ORDER BY r.race_date;
-                    """, (driver_id, ano))
+                    df_ano = df_corridas[df_corridas["Ano"] == ano]
 
-                    if df_corridas.empty:
-                        st.info("Neste ano, o piloto participou, mas não obteve pontos.")
-                    else:
-                        st.dataframe(
-                            df_corridas,
-                            use_container_width=True,
-                            hide_index=True
-                        )
+                    st.dataframe(
+                        df_ano[[
+                            "Corrida",
+                            "Circuito",
+                            "Data",
+                            "Pontos obtidos",
+                            "Posição final"
+                        ]],
+                        use_container_width=True,
+                        hide_index=True
+                    )
 
         except Exception as e:
             st.error("Erro ao gerar o relatório de pontos por ano.")
@@ -170,24 +172,21 @@ def relatorio_status_piloto(driver_id):
 
     if st.button("Gerar relatório", key="btn_status_piloto"):
         try:
+            # Relatório 7:
+            # Chama a função armazenada no PostgreSQL
             df = executar_consulta("""
-                SELECT
-                    s.status AS "Status",
-                    COUNT(*) AS "Quantidade de resultados"
-                FROM results res
-                JOIN status s
-                    ON s.id = res.status_id
-                WHERE res.driver_id = %s
-                GROUP BY
-                    s.id,
-                    s.status
-                ORDER BY
-                    "Quantidade de resultados" DESC;
+                SELECT *
+                FROM fn_relatorio7_piloto_status(%s);
             """, (driver_id,))
 
             if df.empty:
                 st.info("Nenhum resultado encontrado para este piloto.")
             else:
+                df = df.rename(columns={
+                    "status": "Status",
+                    "quantidade": "Quantidade de resultados"
+                })
+
                 st.dataframe(
                     df,
                     use_container_width=True,
