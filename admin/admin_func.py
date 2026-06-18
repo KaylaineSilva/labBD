@@ -12,7 +12,7 @@ Retorno:
     - resultado da consulta caso seja bem sucedido
     - False: caso ocorra erro
 '''
-def consultas(tipo):
+def consultas(tipo, parametros=None):
     query = ""
 
     if tipo == 0:
@@ -97,10 +97,24 @@ def consultas(tipo):
                 ORDER BY SUM(res.points) DESC;
 
         """
-
-        
+    
+    elif tipo == 3:
+        query = """
+            SELECT
+                s.status AS "Status",
+                COUNT(*) AS "Quantidade de resultados"
+            FROM results r
+            JOIN status s
+                ON s.id = r.status_id
+            GROUP BY s.id, s.status
+            ORDER BY "Quantidade de resultados" DESC;
+        """
+    
     try:
-        return executar_consulta(query)
+        if tipo == 4:
+            return executar_consulta(query, parametros)
+        else: 
+            return executar_consulta(query)
         
     except Exception as e:
         st.write(e)

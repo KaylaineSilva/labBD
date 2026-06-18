@@ -27,8 +27,20 @@ st.set_page_config(
     layout="wide"
 )
 
+#Inicializa o banco uma vez por execução do servidor Streamlit, com o parâmetro show_spinner para não mostrar o que está sendo apresentado
+@st.cache_resource(show_spinner=False)
+def inicializar_banco():
+    executar_arquivo_sql("bd_conf/table_users.sql")
+    executar_arquivo_sql("sql/triggers.sql")
+    executar_arquivo_sql("sql/func_admin.sql")
+    executar_arquivo_sql("sql/indice_admin.sql")
+    inserir_usuarios()
+
 
 def inicializar_sessao():
+
+    inicializar_banco()
+
     if "logado" not in st.session_state:
         st.session_state.logado = False
 
@@ -278,12 +290,6 @@ def roteador():
 
 
 def main():
-    inserir_usuarios()  # Inserir usuários ao iniciar a aplicação
-
-    #Executando os arquivos sql necessários
-    executar_arquivo_sql("bd_conf/table_users.sql")
-    executar_arquivo_sql("sql/triggers.sql")
-
     inicializar_sessao()
 
     if not st.session_state.logado:
