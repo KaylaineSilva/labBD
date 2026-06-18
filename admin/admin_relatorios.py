@@ -2,41 +2,7 @@ import streamlit as st
 import pandas as pd
 from db import conectar
 
-
-def executar_consulta(query, params=None):
-    """
-    Executa uma consulta SELECT no banco e retorna o resultado como DataFrame.
-    """
-
-    conn = conectar()
-    cur = conn.cursor()
-
-    cur.execute(query, params)
-
-    dados = cur.fetchall()
-    colunas = [desc[0] for desc in cur.description]
-
-    cur.close()
-    conn.close()
-
-    return pd.DataFrame(dados, columns=colunas)
-
-def buscar_valor_unico(query, params=None):
-    """
-    Executa uma consulta que retorna apenas um valor.
-    """
-
-    conn = conectar()
-    cur = conn.cursor()
-
-    cur.execute(query, params)
-    valor = cur.fetchone()[0]
-
-    cur.close()
-    conn.close()
-
-    return valor
-
+from admin.admin_func import executar_consulta, buscar_valor_unico
 
 def mostrar_relatorios_admin(usuario):
     st.title("Relatórios do Administrador")
@@ -63,7 +29,8 @@ def mostrar_relatorios_admin(usuario):
     elif relatorio == "Relatório hierárquico de escuderias e corridas":
         relatorio_hierarquico()
 
-
+'''
+'''
 def relatorio_resultados_por_status():
     st.subheader("Quantidade de resultados por status")
 

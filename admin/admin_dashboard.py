@@ -2,33 +2,7 @@ import streamlit as st
 import pandas as pd
 from db import conectar
 
-
-def executar_consulta(query, params=None):
-    conn = conectar()
-    cur = conn.cursor()
-
-    cur.execute(query, params)
-
-    dados = cur.fetchall()
-    colunas = [desc[0] for desc in cur.description]
-
-    cur.close()
-    conn.close()
-
-    return pd.DataFrame(dados, columns=colunas)
-
-
-def buscar_valor_unico(query, params=None):
-    conn = conectar()
-    cur = conn.cursor()
-
-    cur.execute(query, params)
-    valor = cur.fetchone()[0]
-
-    cur.close()
-    conn.close()
-
-    return valor
+from admin.admin_func import consultas, buscar_valor_unico
 
 
 def mostrar_dashboard_admin(usuario):
@@ -68,102 +42,44 @@ def mostrar_dashboard_admin(usuario):
 
     st.divider()
 
-    try:
-        st.subheader("Corridas da temporada mais recente")
+    
+    #Consultas necessárias no dashboard do administrador:
+    # 0: Lista das corridas cadastradas na temporada mais recente da base, com circuito, data, horário e quantidade de voltas registrada nos resultados.
+    # 1: Lista das escuderias que correram na temporada mais recente da base, cada uma com o total de pontos obtidos.
+    # 2: Lista dos pilotos que correram na temporada mais recente da base, cada um com o total de pontos obtidos.
+    ano_temporada = buscar_valor_unico("SELECT MAX(year) FROM seasons")
 
-        df_corridas = executar_consulta("""
-            SELECT
-                r.race_name AS "Corrida",
-                c.name AS "Circuito",
-                r.race_date AS "Data",
-                COALESCE(r.race_time::text, 'Não informado') AS "Horário",
-                COUNT(res.id) AS "Quantidade de resultados",
-                MAX(res.laps) AS "Quantidade de voltas"
-            FROM races r
-            LEFT JOIN circuits c
-                ON c.id = r.circuit_id
-            LEFT JOIN results res
-                ON res.race_id = r.id
-            WHERE r.season_id = (
-                SELECT season_id
-                FROM races
-                WHERE race_date IS NOT NULL
-                ORDER BY race_date DESC
-                LIMIT 1
-            )
-            GROUP BY
-                r.id,
-                r.race_name,
-                c.name,
-                r.race_date,
-                r.race_time
-            ORDER BY r.race_date;
-        """)
-
+    st.subheader("Corridas da temporada mais recente")
+    df_corridas = consultas(0)
+    
+    if df_corridas.empty:
+        st.warning("Nenhuma corrida encontrada para a temporada mais recente.")
+    else:
+        #Exibir acima o ano da temporada mais recente
+        st.write(f"Temporada: {ano_temporada}")
         st.dataframe(df_corridas, width='stretch')
 
-    except Exception as e:
-        st.error("Erro ao carregar as corridas da temporada mais recente.")
-        st.exception(e)
-
     st.divider()
+    
+    st.subheader("Escuderias da temporada mais recente por pontuação")
 
-    try:
-        st.subheader("Escuderias da temporada mais recente por pontuação")
+    df_escuderias = consultas(1)
 
-        df_escuderias = executar_consulta("""
-            SELECT
-                c.name AS "Escuderia",
-                SUM(res.points) AS "Total de pontos"
-            FROM results res
-            JOIN races r
-                ON r.id = res.race_id
-            JOIN constructors c
-                ON c.id = res.constructor_id
-            WHERE r.season_id = (
-                SELECT season_id
-                FROM races
-                WHERE race_date IS NOT NULL
-                ORDER BY race_date DESC
-                LIMIT 1
-            )
-            GROUP BY c.id, c.name
-            ORDER BY "Total de pontos" DESC;
-        """)
-
+    if df_escuderias.empty:
+        st.warning("Nenhuma escuderia encontrada para a temporada mais recente.")
+    else:
+        #Exibir acima o ano da temporada mais recente
+        st.write(f"Temporada: {ano_temporada}")
         st.dataframe(df_escuderias, width='stretch')
-
-    except Exception as e:
-        st.error("Erro ao carregar a pontuação das escuderias.")
-        st.exception(e)
-
+    
     st.divider()
 
-    try:
-        st.subheader("Pilotos da temporada mais recente por pontuação")
+    st.subheader("Pilotos da temporada mais recente por pontuação")
+    df_pilotos = consultas(2)
 
-        df_pilotos = executar_consulta("""
-            SELECT
-                d.given_name || ' ' || d.family_name AS "Piloto",
-                SUM(res.points) AS "Total de pontos"
-            FROM results res
-            JOIN races r
-                ON r.id = res.race_id
-            JOIN drivers d
-                ON d.id = res.driver_id
-            WHERE r.season_id = (
-                SELECT season_id
-                FROM races
-                WHERE race_date IS NOT NULL
-                ORDER BY race_date DESC
-                LIMIT 1
-            )
-            GROUP BY d.id, d.given_name, d.family_name
-            ORDER BY "Total de pontos" DESC;
-        """)
-
+    if df_pilotos.empty:
+        st.warning("Nenhum piloto encontrado para a temporada mais recente.")
+    else:
+        #Exibir acima o ano da temporada mais recente
+        st.write(f"Temporada: {ano_temporada}")
         st.dataframe(df_pilotos, width='stretch')
-
-    except Exception as e:
-        st.error("Erro ao carregar a pontuação dos pilotos.")
-        st.exception(e)
