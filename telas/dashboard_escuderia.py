@@ -22,19 +22,8 @@ def mostrar_dashboard_escuderia(usuario):
 
     try:
         dados = buscar_linha_unica("""
-            SELECT
-                c.name AS nome_escuderia,
-                COUNT(*) FILTER (WHERE res.position_order = 1) AS quantidade_vitorias,
-                COUNT(DISTINCT res.driver_id) AS quantidade_pilotos,
-                EXTRACT(YEAR FROM MIN(r.race_date))::int AS primeiro_ano,
-                EXTRACT(YEAR FROM MAX(r.race_date))::int AS ultimo_ano
-            FROM constructors c
-            LEFT JOIN results res
-                ON res.constructor_id = c.id
-            LEFT JOIN races r
-                ON r.id = res.race_id
-            WHERE c.id = %s
-            GROUP BY c.id, c.name;
+            SELECT *
+            FROM dashboard_escuderia(%s);
         """, (constructor_id,))
 
         if dados is None:
@@ -53,7 +42,11 @@ def mostrar_dashboard_escuderia(usuario):
 
         col1.metric("Quantidade de vitórias", quantidade_vitorias)
         col2.metric("Pilotos associados", quantidade_pilotos)
-        col3.metric("Período na base", f"{primeiro_ano} - {ultimo_ano}")
+
+        if primeiro_ano is None or ultimo_ano is None:
+            col3.metric("Período na base", "Sem resultados")
+        else:
+            col3.metric("Período na base", f"{primeiro_ano} - {ultimo_ano}")
 
     except Exception as e:
         st.error("Erro ao carregar o dashboard da escuderia.")

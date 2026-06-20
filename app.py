@@ -34,6 +34,8 @@ def inicializar_banco():
     executar_arquivo_sql("sql/triggers.sql")
     executar_arquivo_sql("sql/func_admin.sql")
     executar_arquivo_sql("sql/indice_admin.sql")
+    executar_arquivo_sql("sql/func_escuderia.sql")
+    executar_arquivo_sql("sql/indice_escuderia.sql")
     inserir_usuarios()
 
 
