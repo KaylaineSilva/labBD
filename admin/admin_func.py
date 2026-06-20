@@ -111,10 +111,7 @@ def consultas(tipo, parametros=None):
         """
     
     try:
-        if tipo == 4:
-            return executar_consulta(query, parametros)
-        else: 
-            return executar_consulta(query)
+        return executar_consulta(query)
         
     except Exception as e:
         st.write(e)

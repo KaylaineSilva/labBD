@@ -11,11 +11,11 @@ from db import executar_arquivo_sql
 
 from admin.admin_dashboard import mostrar_dashboard_admin
 from escuderia.escuderia_dashboard import mostrar_dashboard_escuderia
-from telas.dashboard_piloto import mostrar_dashboard_piloto
+from piloto.piloto_dashboard import mostrar_dashboard_piloto
 
 from admin.admin_relatorios import mostrar_relatorios_admin
 from escuderia.escuderia_relatorios import mostrar_relatorios_escuderia
-from telas.relatorios_piloto import mostrar_relatorios_piloto
+from piloto.piloto_relatorios import mostrar_relatorios_piloto
 
 from admin.admin_acoes import mostrar_acoes_admin
 from escuderia.escuderia_acoes import mostrar_acoes_escuderia
@@ -36,6 +36,10 @@ def inicializar_banco():
     executar_arquivo_sql("sql/indice_admin.sql")
     executar_arquivo_sql("sql/func_escuderia.sql")
     executar_arquivo_sql("sql/indice_escuderia.sql")
+    executar_arquivo_sql("sql/indice_piloto.sql")
+    executar_arquivo_sql("sql/visoes_piloto.sql")
+    executar_arquivo_sql("sql/func_piloto.sql")
+
     inserir_usuarios()
 
 
