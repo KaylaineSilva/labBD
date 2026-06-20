@@ -10,15 +10,15 @@ from db import conectar
 from db import executar_arquivo_sql
 
 from admin.admin_dashboard import mostrar_dashboard_admin
-from telas.dashboard_escuderia import mostrar_dashboard_escuderia
+from escuderia.escuderia_dashboard import mostrar_dashboard_escuderia
 from piloto.piloto_dashboard import mostrar_dashboard_piloto
 
 from admin.admin_relatorios import mostrar_relatorios_admin
-from telas.relatorios_escuderia import mostrar_relatorios_escuderia
+from escuderia.escuderia_relatorios import mostrar_relatorios_escuderia
 from piloto.piloto_relatorios import mostrar_relatorios_piloto
 
 from admin.admin_acoes import mostrar_acoes_admin
-from telas.acoes_escuderia import mostrar_acoes
+from escuderia.escuderia_acoes import mostrar_acoes_escuderia
 from auth import logar, inserir_usuarios, logout
 
 st.set_page_config(
@@ -34,6 +34,8 @@ def inicializar_banco():
     executar_arquivo_sql("sql/triggers.sql")
     executar_arquivo_sql("sql/func_admin.sql")
     executar_arquivo_sql("sql/indice_admin.sql")
+    executar_arquivo_sql("sql/func_escuderia.sql")
+    executar_arquivo_sql("sql/indice_escuderia.sql")
     executar_arquivo_sql("sql/indice_piloto.sql")
     executar_arquivo_sql("sql/visoes_piloto.sql")
     executar_arquivo_sql("sql/func_piloto.sql")
@@ -290,7 +292,7 @@ def roteador():
             mostrar_acoes_admin(usuario)
 
         elif tipo == "Escuderia":
-            mostrar_acoes(usuario)
+            mostrar_acoes_escuderia(usuario)
 
 
 def main():
