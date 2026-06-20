@@ -1,40 +1,30 @@
 import streamlit as st
-from db import conectar
 
-
-def buscar_linha_unica(query, params=None):
-    conn = conectar()
-    cur = conn.cursor()
-
-    cur.execute(query, params)
-    linha = cur.fetchone()
-
-    cur.close()
-    conn.close()
-
-    return linha
+from escuderia.escuderia_func import consultas
 
 
 def mostrar_dashboard_escuderia(usuario):
     st.title("Dashboard da Escuderia")
 
+    st.write(f"Usuário logado: **{usuario['login']}**")
+    st.write("Perfil: **Escuderia**")
+
     constructor_id = usuario["id_original"]
 
     try:
-        dados = buscar_linha_unica("""
-            SELECT *
-            FROM dashboard_escuderia(%s);
-        """, (constructor_id,))
+        df = consultas(0, (constructor_id,))
 
-        if dados is None:
+        if df.empty:
             st.warning("Nenhuma informação encontrada para esta escuderia.")
             return
 
-        nome_escuderia = dados[0]
-        quantidade_vitorias = dados[1]
-        quantidade_pilotos = dados[2]
-        primeiro_ano = dados[3]
-        ultimo_ano = dados[4]
+        dados = df.iloc[0]
+
+        nome_escuderia = dados["Escuderia"]
+        quantidade_vitorias = dados["Quantidade de vitórias"]
+        quantidade_pilotos = dados["Quantidade de pilotos"]
+        primeiro_ano = dados["Primeiro ano"]
+        ultimo_ano = dados["Último ano"]
 
         st.subheader(f"Escuderia: {nome_escuderia}")
 
