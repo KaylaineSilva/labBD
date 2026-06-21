@@ -56,49 +56,6 @@ def inicializar_sessao():
     if "pagina" not in st.session_state:
         st.session_state.pagina = "Dashboard"
 
-
-def buscar_id_escuderia(constructor_ref):
-    conn = conectar()
-    cur = conn.cursor()
-
-    cur.execute("""
-        SELECT id
-        FROM constructors
-        WHERE constructor_ref = %s;
-    """, (constructor_ref,))
-
-    resultado = cur.fetchone()
-
-    cur.close()
-    conn.close()
-
-    if resultado is None:
-        return None
-
-    return resultado[0]
-
-
-def buscar_id_piloto(driver_ref):
-    conn = conectar()
-    cur = conn.cursor()
-
-    cur.execute("""
-        SELECT id
-        FROM drivers
-        WHERE driver_ref = %s;
-    """, (driver_ref,))
-
-    resultado = cur.fetchone()
-
-    cur.close()
-    conn.close()
-
-    if resultado is None:
-        return None
-
-    return resultado[0]
-
-
 def tela_login():
     st.title("🏎️ Sistema Fórmula 1")
     st.subheader("Login")

@@ -40,11 +40,7 @@ BEGIN
                 'áàãâäéèêëíìîïóòõôöúùûüç',
                 'aaaaaeeeeiiiiooooouuuuc'
             )
-            AND (
-                co.code = 'BR'
-                OR co.name ILIKE 'Brazil'
-                OR co.name ILIKE 'Brasil'
-            )
+            AND co.code = 'BR'
             AND ci.latitude IS NOT NULL
             AND ci.longitude IS NOT NULL
     ),
